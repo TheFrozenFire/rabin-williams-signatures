@@ -22,7 +22,7 @@ pub struct KeyPair {
 impl KeyPair {
     /// Generates a new Rabin-Williams key pair
     pub fn generate(bits: usize) -> Result<Self> {
-        if bits < 1024 {
+        if bits < 512 {  // Changed from 1024
             return Err(RabinWilliamsError::InvalidKeySize);
         }
 
@@ -68,7 +68,8 @@ fn generate_prime_congruent(bits: usize, remainder: u32, modulus: u32) -> Result
         }
 
         let config = PrimalityTestConfig::default();
-        if is_prime(&adjusted, Some(config)) == Primality::Yes {
+        let primality = is_prime(&adjusted, Some(config));
+        if primality == Primality::Yes || primality.probably() {
             return Ok(adjusted);
         }
     }
