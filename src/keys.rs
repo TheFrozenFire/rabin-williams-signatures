@@ -1,6 +1,6 @@
 use crate::errors::{RabinWilliamsError, Result};
 use num_bigint::{BigUint, RandBigInt};
-use num_prime::{nt_funcs::is_prime, Primality};
+use num_prime::{nt_funcs::is_prime, Primality, PrimalityTestConfig};
 
 #[derive(Clone, Debug)]
 pub struct PublicKey {
@@ -67,7 +67,8 @@ fn generate_prime_congruent(bits: usize, remainder: u32, modulus: u32) -> Result
             }
         }
 
-        if is_prime(&adjusted, None) == Primality::Yes {
+        let config = PrimalityTestConfig::default().with_trial_division(true).with_reps(64);
+        if is_prime(&adjusted, Some(config)) == Primality::Yes {
             return Ok(adjusted);
         }
     }
