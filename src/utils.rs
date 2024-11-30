@@ -1,5 +1,4 @@
 use num_bigint::{BigUint, BigInt};
-use num_integer::Integer;
 use num_traits::{One, Zero};
 use crate::errors::{Result, RabinWilliamsError};
 
@@ -15,12 +14,12 @@ pub fn mod_sqrt(a: &BigUint, p: &BigUint) -> Result<BigUint> {
 
     // Handle p mod 4 == 3 case using faster computation
     if p % 4u32 == 3u32.into() {
-        let exp = (p + 1u32) / 4u32;
+        let exp = (p.clone() + 1u32) / 4u32;
         return Ok(a.modpow(&exp, p));
     }
 
     // Tonelli-Shanks algorithm implementation
-    let mut q = p - 1u32;
+    let mut q = p.clone() - 1u32;
     let mut s = 0u32;
     while (&q % 2u32).is_zero() {
         s += 1;
@@ -28,7 +27,7 @@ pub fn mod_sqrt(a: &BigUint, p: &BigUint) -> Result<BigUint> {
     }
 
     if s == 1 {
-        let exp = (p + 1u32) / 4u32;
+        let exp = (p.clone() + 1u32) / 4u32;
         return Ok(a.modpow(&exp, p));
     }
 
@@ -39,7 +38,7 @@ pub fn mod_sqrt(a: &BigUint, p: &BigUint) -> Result<BigUint> {
     }
 
     let mut c = z.modpow(&q, p);
-    let mut r = a.modpow(&((q + 1u32) / 2u32), p);
+    let mut r = a.modpow(&((q.clone() + 1u32) / 2u32), p);
     let mut t = a.modpow(&q, p);
     let mut m = s;
 
@@ -60,9 +59,9 @@ pub fn mod_sqrt(a: &BigUint, p: &BigUint) -> Result<BigUint> {
         }
 
         let b = c.modpow(&BigUint::from(2u32).pow(m - i - 1), p);
-        r = (r * &b) % p;
+        r = (&r * &b) % p;
         c = (&b * &b) % p;
-        t = (t * &c) % p;
+        t = (&t * &c) % p;
         m = i;
     }
 }
@@ -72,30 +71,38 @@ pub fn is_quadratic_residue(a: &BigUint, p: &BigUint) -> bool {
     if p.is_zero() || p.is_one() {
         return false;
     }
-    let exp = (p - 1u32) / 2u32;
+    let exp = (p.clone() - 1u32) / 2u32;
     a.modpow(&exp, p) == BigUint::one()
 }
 
 /// Chinese Remainder Theorem implementation
 pub fn chinese_remainder_theorem(remainders: &[BigInt], moduli: &[BigInt]) -> Result<BigInt> {
-    if remainders.len() != moduli.len() {
+    if remainders.len() != moduli.len() || remainders.is_empty() {
         return Err(RabinWilliamsError::ComputationError);
     }
 
-    let prod = moduli.iter().product::<BigInt>();
+    // Compute product of all moduli
+    let prod = moduli.iter().fold(BigInt::one(), |acc, m| acc * m.clone());
     
     let mut sum = BigInt::zero();
     for i in 0..remainders.len() {
-        let p = &prod / &moduli[i];
+        let p = &prod / moduli[i].clone();
         let mut inv = mod_inverse(&p, &moduli[i])
             .ok_or(RabinWilliamsError::ComputationError)?;
+        
         if inv < BigInt::zero() {
-            inv += &moduli[i];
+            inv += moduli[i].clone();
         }
-        sum += &remainders[i] * &p * inv;
+        
+        sum = (sum + remainders[i].clone() * p * inv) % &prod;
     }
 
-    Ok(sum % prod)
+    // Normalize result to be in range [0, prod)
+    if sum < BigInt::zero() {
+        sum += prod;
+    }
+
+    Ok(sum)
 }
 
 /// Computes modular multiplicative inverse using extended Euclidean algorithm
@@ -107,17 +114,14 @@ pub fn mod_inverse(a: &BigInt, m: &BigInt) -> Option<BigInt> {
 
     while !newr.is_zero() {
         let quotient = &r / &newr;
-        let temp_t = t.clone();
-        t = newt.clone();
-        newt = temp_t - &quotient * newt;
-        let temp_r = r.clone();
-        r = newr.clone();
-        newr = temp_r - &quotient * newr;
+        (t, newt) = (newt.clone(), t - &quotient * newt);
+        (r, newr) = (newr.clone(), r - &quotient * newr);
     }
 
     if r > BigInt::one() {
         return None;
     }
+    
     if t < BigInt::zero() {
         t += m;
     }
