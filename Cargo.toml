@@ -1,0 +1,14 @@
+[package]
+name = "rabin_williams"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "A Rust implementation of Rabin-Williams digital signatures"
+license = "MIT"
+
+[dependencies]
+num-bigint = { version = "0.4", features = ["rand"] }
+num-traits = "0.2"
+num-integer = "0.1"
+rand = "0.8"
+thiserror = "1.0"
