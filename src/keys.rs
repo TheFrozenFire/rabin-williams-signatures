@@ -67,7 +67,7 @@ fn generate_prime_congruent(bits: usize, remainder: u32, modulus: u32) -> Result
             }
         }
 
-        let config = PrimalityTestConfig::default().with_trial_division(true).with_reps(64);
+        let config = PrimalityTestConfig::default();
         if is_prime(&adjusted, Some(config)) == Primality::Yes {
             return Ok(adjusted);
         }
