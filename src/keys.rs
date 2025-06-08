@@ -1,8 +1,9 @@
 use crate::errors::{RabinWilliamsError, Result};
 use num_bigint::{BigUint, RandBigInt};
+use num_integer::Integer;
 use num_prime::{nt_funcs::is_prime, Primality, PrimalityTestConfig};
 use sha2::{Sha256, Digest};
-use crate::utils::{chinese_remainder_theorem, make_quadratic_residue};
+use crate::utils::{chinese_remainder_theorem, make_quadratic_residue, mod_inverse};
 
 #[derive(Clone, Debug)]
 pub struct PublicKey {
@@ -76,6 +77,23 @@ impl PublicKey {
         &self.n
     }
 
+    // Generate a random coprime to n
+    pub fn coprime(&self) -> BigUint {
+        let mut rng = rand::thread_rng();
+        loop {
+            let e = rng.gen_biguint_range(&BigUint::from(1u32), &self.n);
+            if e.gcd(&self.n) == BigUint::from(1u32) {
+                return e;
+            }
+        }
+    }
+
+    pub fn blinding(&self) -> (BigUint, BigUint) {
+        let r = self.coprime();
+        let r_squared = &r * &r % self.n.clone();
+        (r, r_squared)
+    }
+
     pub fn extract_signature(&self, signature: &[u8]) -> Result<(i32, u32, BigUint)> {
         if signature.is_empty() {
             return Err(RabinWilliamsError::InvalidSignature);
@@ -134,6 +152,28 @@ impl PublicKey {
 
         Ok(result == m)
     }
+
+    /// Blinds a message using a random coprime r
+    /// Returns the blinded message hash and the blinding factor r
+    pub fn blind_message(&self, message: &[u8]) -> (BigUint, BigUint) {
+        // Compute SHA-256 hash of the message
+        let mut hasher = Sha256::new();
+        hasher.update(message);
+        let hash = hasher.finalize();
+
+        let (r, r_squared) = self.blinding();
+        let m = BigUint::from_bytes_be(&hash);
+        let blinded_message = &r_squared * &m % self.n();
+        (blinded_message, r)
+    }
+
+    /// Unblinds a signature using the blinding factor r
+    pub fn unblind_signature(&self, signature: &[u8], r: &BigUint) -> Result<Vec<u8>> {
+        let (e, f, x) = self.extract_signature(signature)?;
+        let r_inv = mod_inverse(r, self.n()).ok_or(RabinWilliamsError::InvalidSignature)?;
+        let unblinded_x = &r_inv * &x % self.n();
+        Ok(PrivateKey::pack_signature(e, f, &unblinded_x))
+    }
 }
 
 impl PrivateKey {
@@ -157,7 +197,11 @@ impl PrivateKey {
         let mut hasher = Sha256::new();
         hasher.update(message);
         let hash = hasher.finalize();
-        let m = BigUint::from_bytes_be(&hash);
+        self.raw_sign(&hash)
+    }
+
+    pub fn raw_sign(&self, message: &[u8]) -> Result<Vec<u8>> {
+        let m = BigUint::from_bytes_be(&message);
         
         let (m, (e, f)) = make_quadratic_residue(&m, &self.p, &self.q);
         
@@ -187,16 +231,18 @@ impl PrivateKey {
         
         let signature = chinese_remainder_theorem(&remainders, &moduli)?;
         
-        // Convert to bytes and encode e and f
-        let mut sig_bytes = signature.to_bytes_be();
+        tracing::info!("Successfully generated Rabin-Williams signature with e={}, f={}", e, f);
+        Ok(Self::pack_signature(e, f, &signature))
+    }
+
+    pub fn pack_signature(e: i32, f: u32, x: &BigUint) -> Vec<u8> {
+        let mut sig_bytes = x.to_bytes_be();
         // Encode e and f in the first byte:
         // bit 0: e (0 for 1, 1 for -1)
         // bit 1: f (0 for 1, 1 for 2)
         let first_byte = ((e == -1) as u8) | (((f == 2) as u8) << 1);
         sig_bytes.insert(0, first_byte);
-        
-        tracing::info!("Successfully generated Rabin-Williams signature with e={}, f={}", e, f);
-        Ok(sig_bytes)
+        sig_bytes
     }
 
 }
@@ -233,9 +279,7 @@ mod tests {
         let mut rng = thread_rng();
         let len = rng.gen_range(10..100); // Random length between 10 and 100 bytes
         let random_bytes: Vec<u8> = (0..len).map(|_| rng.gen()).collect();
-        let mut hasher = Sha256::new();
-        hasher.update(&random_bytes);
-        hasher.finalize().to_vec()
+        random_bytes
     }
 
     #[test]
@@ -255,6 +299,25 @@ mod tests {
             assert!(is_valid, "Signature verification failed for message {}", i);
             tracing::info!("Is valid {i}: {:?}", is_valid);
         }
+    }
+
+    #[test]
+    fn test_blind_sign_verify() {
+        let key_pair = KeyPair::generate(1024).unwrap();
+        let message = generate_random_message();
+
+        // Blind the message
+        let (blinded_message, r) = key_pair.public.blind_message(&message);
+        
+        // Sign the blinded message
+        let blinded_signature = key_pair.private.raw_sign(&blinded_message.to_bytes_be()).unwrap();
+        
+        // Unblind the signature
+        let unblinded_signature = key_pair.public.unblind_signature(&blinded_signature, &r).unwrap();
+
+        // Verify the unblinded signature
+        let is_valid = key_pair.public.verify(&message, &unblinded_signature).unwrap();
+        assert!(is_valid);
     }
 
     #[test]
