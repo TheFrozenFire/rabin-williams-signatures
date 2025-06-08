@@ -5,8 +5,10 @@
 pub mod errors;
 pub mod keys;
 pub mod utils;
+pub mod hash;
 
 pub use keys::{PublicKey, PrivateKey, KeyPair};
+pub use hash::{HashWrapper, Sha256Hash};
 pub use errors::RabinWilliamsError;
 
 /// Re-export commonly used types from num-bigint

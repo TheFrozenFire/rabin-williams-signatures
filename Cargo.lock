@@ -315,6 +315,7 @@ name = "rabin_williams"
 version = "0.1.0"
 dependencies = [
  "ctor",
+ "digest",
  "hex",
  "num-bigint",
  "num-integer",

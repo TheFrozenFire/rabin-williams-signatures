@@ -2,29 +2,33 @@ use crate::errors::{RabinWilliamsError, Result};
 use num_bigint::{BigUint, RandBigInt};
 use num_integer::Integer;
 use num_prime::{nt_funcs::is_prime, Primality, PrimalityTestConfig};
-use sha2::{Sha256, Digest};
+use digest::Digest;
+use sha2::Sha256;
 use crate::utils::{chinese_remainder_theorem, make_quadratic_residue, mod_inverse};
+use crate::hash::HashWrapper;
 
 #[derive(Clone, Debug)]
-pub struct PublicKey {
+pub struct PublicKey<D: Digest + Clone = Sha256> {
     pub n: BigUint,
+    hash_fn: HashWrapper<D>,
 }
 
 #[derive(Clone, Debug)]
-pub struct PrivateKey {
+pub struct PrivateKey<D: Digest + Clone = Sha256> {
     pub p: BigUint,
     pub q: BigUint,
+    hash_fn: HashWrapper<D>,
 }
 
 #[derive(Clone, Debug)]
-pub struct KeyPair {
-    pub public: PublicKey,
-    pub private: PrivateKey,
+pub struct KeyPair<D: Digest + Clone = Sha256> {
+    pub public: PublicKey<D>,
+    pub private: PrivateKey<D>,
 }
 
-impl KeyPair {
-    /// Generates a new Rabin-Williams key pair
-    pub fn generate(bits: usize) -> Result<Self> {
+impl<D: Digest + Clone> KeyPair<D> {
+    /// Generates a new Rabin-Williams key pair with the specified hash function
+    pub fn generate_with_hash(bits: usize, hash_fn: HashWrapper<D>) -> Result<Self> {
         if bits < 1024 {
             return Err(RabinWilliamsError::InvalidKeySize);
         }
@@ -38,9 +42,16 @@ impl KeyPair {
         let n = &p * &q;
 
         Ok(KeyPair {
-            public: PublicKey { n },
-            private: PrivateKey { p, q },
+            public: PublicKey { n: n.clone(), hash_fn: hash_fn.clone() },
+            private: PrivateKey { p, q, hash_fn },
         })
+    }
+}
+
+impl KeyPair<Sha256> {
+    /// Generates a new Rabin-Williams key pair using SHA-256 as the default hash function
+    pub fn generate(bits: usize) -> Result<Self> {
+        Self::generate_with_hash(bits, HashWrapper::default())
     }
 }
 
@@ -71,7 +82,7 @@ fn generate_prime_congruent(bits: usize, remainder: u32, modulus: u32) -> Result
     Err(RabinWilliamsError::InvalidPrime)
 }
 
-impl PublicKey {
+impl<D: Digest + Clone> PublicKey<D> {
     /// Returns a reference to the modulus n
     pub fn n(&self) -> &BigUint {
         &self.n
@@ -121,12 +132,7 @@ impl PublicKey {
     }
 
     pub fn verify(&self, message: &[u8], signature: &[u8]) -> Result<bool> {
-        // Compute SHA-256 hash of the message
-        let mut hasher = Sha256::new();
-        hasher.update(message);
-        let hash = hasher.finalize();
-        let m = BigUint::from_bytes_be(&hash);
-
+        let m = self.hash_fn.hash(message);
         let (e, f, x) = self.extract_signature(signature)?;
 
         // Compute x² mod n
@@ -136,14 +142,11 @@ impl PublicKey {
         let result = match (e, f) {
             (1, 1) => x_squared,
             (1, 2) => {
-                // To reverse m' = 2m (mod n), we need m = m' * 2^-1 (mod n)
-                // For odd n, 2^-1 (mod n) is (n+1)/2
                 let two_inv = (n + 1u32) / 2u32;
                 (&x_squared * two_inv) % n
             },
             (-1, 1) => (n - &x_squared) % n,
             (-1, 2) => {
-                // To reverse m' = -2m (mod n), we need m = -m' * 2^-1 (mod n)
                 let two_inv = (n + 1u32) / 2u32;
                 ((n - &x_squared) * two_inv) % n
             },
@@ -156,13 +159,8 @@ impl PublicKey {
     /// Blinds a message using a random coprime r
     /// Returns the blinded message hash and the blinding factor r
     pub fn blind_message(&self, message: &[u8]) -> (BigUint, BigUint) {
-        // Compute SHA-256 hash of the message
-        let mut hasher = Sha256::new();
-        hasher.update(message);
-        let hash = hasher.finalize();
-
+        let m = self.hash_fn.hash(message);
         let (r, r_squared) = self.blinding();
-        let m = BigUint::from_bytes_be(&hash);
         let blinded_message = &r_squared * &m % self.n();
         (blinded_message, r)
     }
@@ -172,11 +170,11 @@ impl PublicKey {
         let (e, f, x) = self.extract_signature(signature)?;
         let r_inv = mod_inverse(r, self.n()).ok_or(RabinWilliamsError::InvalidSignature)?;
         let unblinded_x = &r_inv * &x % self.n();
-        Ok(PrivateKey::pack_signature(e, f, &unblinded_x))
+        Ok(PrivateKey::<D>::pack_signature(e, f, &unblinded_x))
     }
 }
 
-impl PrivateKey {
+impl<D: Digest + Clone> PrivateKey<D> {
     pub fn n(&self) -> BigUint {
         self.p.clone() * self.q.clone()
     }
@@ -191,12 +189,9 @@ impl PrivateKey {
     /// - e ∈ {-1, 1}
     /// - f ∈ {1, 2}
     /// - x is the signature
-    /// - H(m) is the SHA-256 hash of the message
+    /// - H(m) is the hash of the message using the configured hash function
     pub fn sign(&self, message: &[u8]) -> Result<Vec<u8>> {
-        // Compute SHA-256 hash of the message
-        let mut hasher = Sha256::new();
-        hasher.update(message);
-        let hash = hasher.finalize();
+        let hash = self.hash_fn.hash(message).to_bytes_be();
         self.raw_sign(&hash)
     }
 
@@ -244,18 +239,26 @@ impl PrivateKey {
         sig_bytes.insert(0, first_byte);
         sig_bytes
     }
-
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use rand::{thread_rng, Rng};
+    use sha2::Sha512;
+
+    // Helper function to generate random message
+    fn generate_random_message() -> Vec<u8> {
+        let mut rng = thread_rng();
+        let len = rng.gen_range(10..100); // Random length between 10 and 100 bytes
+        let random_bytes: Vec<u8> = (0..len).map(|_| rng.gen()).collect();
+        random_bytes
+    }
 
     #[test]
     fn test_key_generation() -> Result<()> {
-        // Generate a keypair with 1024-bit modulus
-        let keypair = KeyPair::generate(1024)?;
+        // Generate a keypair with 1024-bit modulus using default SHA-256
+        let keypair: KeyPair<Sha256> = KeyPair::generate(1024)?;
 
         // Verify key sizes
         assert!(keypair.public.n.bits() >= 1023); // Allow for slight variation
@@ -274,63 +277,74 @@ mod tests {
         Ok(())
     }
 
-    // Helper function to generate random message
-    fn generate_random_message() -> Vec<u8> {
-        let mut rng = thread_rng();
-        let len = rng.gen_range(10..100); // Random length between 10 and 100 bytes
-        let random_bytes: Vec<u8> = (0..len).map(|_| rng.gen()).collect();
-        random_bytes
-    }
-
     #[test]
-    fn test_sign_verify() {
-        let key_pair = KeyPair::generate(1024).unwrap();
+    fn test_sign_verify() -> Result<()> {
+        let key_pair: KeyPair<Sha256> = KeyPair::generate(1024)?;
         
         for i in 0..10 {
             let message = generate_random_message();
             
             // Sign message
-            let signature = key_pair.private.sign(&message).unwrap();
+            let signature = key_pair.private.sign(&message)?;
 
             tracing::info!("Signature: {:?}", BigUint::from_bytes_be(&signature));
             
             // Verify signature and assert it's valid
-            let is_valid = key_pair.public.verify(&message, &signature).unwrap();
+            let is_valid = key_pair.public.verify(&message, &signature)?;
             assert!(is_valid, "Signature verification failed for message {}", i);
             tracing::info!("Is valid {i}: {:?}", is_valid);
         }
+
+        Ok(())
     }
 
     #[test]
-    fn test_blind_sign_verify() {
-        let key_pair = KeyPair::generate(1024).unwrap();
+    fn test_blind_sign_verify() -> Result<()> {
+        let key_pair: KeyPair<Sha256> = KeyPair::generate(1024)?;
         let message = generate_random_message();
 
         // Blind the message
         let (blinded_message, r) = key_pair.public.blind_message(&message);
         
         // Sign the blinded message
-        let blinded_signature = key_pair.private.raw_sign(&blinded_message.to_bytes_be()).unwrap();
+        let blinded_signature = key_pair.private.raw_sign(&blinded_message.to_bytes_be())?;
         
         // Unblind the signature
-        let unblinded_signature = key_pair.public.unblind_signature(&blinded_signature, &r).unwrap();
+        let unblinded_signature = key_pair.public.unblind_signature(&blinded_signature, &r)?;
 
         // Verify the unblinded signature
-        let is_valid = key_pair.public.verify(&message, &unblinded_signature).unwrap();
+        let is_valid = key_pair.public.verify(&message, &unblinded_signature)?;
         assert!(is_valid);
+
+        Ok(())
     }
 
     #[test]
-    fn test_invalid_signature() {
-        let key_pair = KeyPair::generate(1024).unwrap();
+    fn test_invalid_signature() -> Result<()> {
+        let key_pair: KeyPair<Sha256> = KeyPair::generate(1024)?;
         let message = b"Hello, World!";
-        let mut signature = key_pair.private.sign(message).unwrap();
+        let mut signature = key_pair.private.sign(message)?;
         
         // Tamper with signature
         signature[0] ^= 1;
         
-        let is_valid = key_pair.public.verify(message, &signature).unwrap();
-        
+        let is_valid = key_pair.public.verify(message, &signature)?;
         assert!(!is_valid);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_custom_hash() -> Result<()> {
+        // Generate a keypair with SHA-512
+        let hash_fn = HashWrapper::<Sha512>::default();
+        let keypair: KeyPair<Sha512> = KeyPair::generate_with_hash(1024, hash_fn)?;
+
+        let message = b"Hello, World!";
+        let signature = keypair.private.sign(message)?;
+        let is_valid = keypair.public.verify(message, &signature)?;
+        assert!(is_valid);
+
+        Ok(())
     }
 }

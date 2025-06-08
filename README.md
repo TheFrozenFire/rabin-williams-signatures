@@ -10,13 +10,14 @@ This library implements the Rabin-Williams signature scheme, which is a variant 
 - Key pair generation with configurable key sizes (minimum 1024 bits)
 - Regular message signing and verification
 - Blind signature support
-- SHA-256 for message hashing
+- Flexible hash function abstraction using the `digest` crate with SHA-256 as the default
 
 ## Features
 
 - **Secure Key Generation**: Generates primes p and q with specific congruence conditions (p ≡ 3 mod 8, q ≡ 7 mod 8)
 - **Deterministic Signatures**: Uses a deterministic approach for signature generation
 - **Blind Signatures**: Supports blind signatures for privacy-preserving applications
+- **Custom Hash Functions**: Supports any hash function that implements the `digest` crate's `Digest` trait
 
 ## Usage
 
@@ -33,7 +34,7 @@ rabin-williams-signatures = { git = "https://github.com/thefrozenfire/rabin-will
 use rabin_williams_signatures::keys::{KeyPair, Result};
 
 fn main() -> Result<()> {
-    // Generate a key pair
+    // Generate a key pair using the default SHA-256 hash function
     let key_pair = KeyPair::generate(1024)?;
     
     // Sign a message
@@ -47,6 +48,36 @@ fn main() -> Result<()> {
     Ok(())
 }
 ```
+
+### Using a Custom Hash Function
+
+You can use any hash function that implements the `digest` crate's `Digest` trait. For example, to use SHA-512:
+
+```rust
+use rabin_williams_signatures::keys::{KeyPair, HashWrapper, Result};
+use sha2::Sha512;
+
+fn main() -> Result<()> {
+    // Generate a key pair using SHA-512
+    let hash_fn = HashWrapper::<Sha512>::default();
+    let key_pair = KeyPair::generate_with_hash(1024, hash_fn)?;
+    
+    // Use the key pair as normal
+    let message = b"Hello, World!";
+    let signature = key_pair.private.sign(message)?;
+    let is_valid = key_pair.public.verify(message, &signature)?;
+    assert!(is_valid);
+    
+    Ok(())
+}
+```
+
+You can also use other hash functions from the `digest` ecosystem, such as:
+- SHA-1 (from the `sha1` crate)
+- SHA-3 (from the `sha3` crate)
+- BLAKE2 (from the `blake2` crate)
+- RIPEMD (from the `ripemd` crate)
+- And many more!
 
 ### Blind Signatures
 
