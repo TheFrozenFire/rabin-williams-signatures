@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use rabin_williams::{KeyPair, PublicKey, PrivateKey};
+use rabin_williams::{KeyPair, PublicKey, PrivateKey, HashWrapper};
 use rabin_williams::errors::Result;
 use sha2::Sha256;
 use std::fs;
@@ -210,6 +210,13 @@ fn sign_message(private_key_path: &PathBuf, message: Option<&str>, output: Optio
     let private_key = load_private_key(private_key_path)?;
     let message_bytes = read_message(message)?;
     
+    // Compute and display message hash for debugging
+    let hash_wrapper = HashWrapper::<Sha256>::default();
+    let message_hash = hash_wrapper.hash(&message_bytes);
+    let message_hash_bytes = message_hash.to_bytes_be();
+    eprintln!("DEBUG: Message hash (SHA-256): {}", hex::encode(&message_hash_bytes));
+    eprintln!("DEBUG: Message hash length: {} bytes", message_hash_bytes.len());
+    
     let signature = private_key.sign(&message_bytes)?;
     let signature_hex = hex::encode(&signature);
     
@@ -231,10 +238,23 @@ fn verify_signature(public_key_path: &PathBuf, signature_path: &PathBuf, message
     let public_key = load_public_key(public_key_path)?;
     let message_bytes = read_message(message)?;
     
+    // Compute and display message hash for debugging
+    let hash_wrapper = HashWrapper::<Sha256>::default();
+    let message_hash = hash_wrapper.hash(&message_bytes);
+    let message_hash_bytes = message_hash.to_bytes_be();
+    eprintln!("DEBUG: Message hash (SHA-256): {}", hex::encode(&message_hash_bytes));
+    eprintln!("DEBUG: Message hash length: {} bytes", message_hash_bytes.len());
+    eprintln!("DEBUG: Message bytes length: {} bytes", message_bytes.len());
+    
     let signature_hex = fs::read_to_string(signature_path)
         .map_err(|_| rabin_williams::RabinWilliamsError::InvalidSignature)?;
     let signature: Vec<u8> = hex::decode(signature_hex.trim())
         .map_err(|_| rabin_williams::RabinWilliamsError::InvalidSignature)?;
+    
+    eprintln!("DEBUG: Signature length: {} bytes", signature.len());
+    if !signature.is_empty() {
+        eprintln!("DEBUG: Signature first byte (flags): 0x{:02x}", signature[0]);
+    }
     
     let is_valid = public_key.verify(&message_bytes, &signature)?;
     

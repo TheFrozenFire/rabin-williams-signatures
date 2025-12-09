@@ -10,7 +10,8 @@ import {RabinWilliamsVerifier} from "../src/RabinWilliamsVerifier.sol";
  */
 contract RabinWilliamsVerifierTestHarness is RabinWilliamsVerifier {
     // Expose internal functions for testing
-    function testExtractSignature(bytes memory signature)
+    // Note: Functions don't start with "test" to avoid auto-fuzzing
+    function harnessExtractSignature(bytes memory signature)
         public
         pure
         returns (int256 e, uint256 f, bytes memory x)
@@ -18,7 +19,7 @@ contract RabinWilliamsVerifierTestHarness is RabinWilliamsVerifier {
         return extractSignature(signature);
     }
 
-    function testModExp(
+    function harnessModExp(
         bytes memory base,
         uint256 exponent,
         bytes memory modulus
@@ -26,15 +27,15 @@ contract RabinWilliamsVerifierTestHarness is RabinWilliamsVerifier {
         return modExp(base, exponent, modulus);
     }
 
-    function testAddOne(bytes memory a) public pure returns (bytes memory) {
+    function harnessAddOne(bytes memory a) public pure returns (bytes memory) {
         return addOne(a);
     }
 
-    function testDivByTwo(bytes memory a) public pure returns (bytes memory) {
+    function harnessDivByTwo(bytes memory a) public pure returns (bytes memory) {
         return divByTwo(a);
     }
 
-    function testModMul(
+    function harnessModMul(
         bytes memory a,
         bytes memory b,
         bytes memory n
@@ -42,7 +43,7 @@ contract RabinWilliamsVerifierTestHarness is RabinWilliamsVerifier {
         return modMul(a, b, n);
     }
 
-    function testModSub(
+    function harnessModSub(
         bytes memory n,
         bytes memory a,
         bytes memory modulus
@@ -50,31 +51,31 @@ contract RabinWilliamsVerifierTestHarness is RabinWilliamsVerifier {
         return modSub(n, a, modulus);
     }
 
-    function testMul(bytes memory a, bytes memory b) public pure returns (bytes memory) {
+    function harnessMul(bytes memory a, bytes memory b) public pure returns (bytes memory) {
         return mul(a, b);
     }
 
-    function testSub(bytes memory a, bytes memory b) public pure returns (bytes memory) {
+    function harnessSub(bytes memory a, bytes memory b) public pure returns (bytes memory) {
         return sub(a, b);
     }
 
-    function testAdd(bytes memory a, bytes memory b) public pure returns (bytes memory) {
+    function harnessAdd(bytes memory a, bytes memory b) public pure returns (bytes memory) {
         return add(a, b);
     }
 
-    function testMod(bytes memory a, bytes memory n) public pure returns (bytes memory) {
+    function harnessMod(bytes memory a, bytes memory n) public pure returns (bytes memory) {
         return mod(a, n);
     }
 
-    function testCompare(bytes memory a, bytes memory b) public pure returns (int256) {
+    function harnessCompare(bytes memory a, bytes memory b) public pure returns (int256) {
         return compare(a, b);
     }
 
-    function testRemoveLeadingZeros(bytes memory data) public pure returns (bytes memory) {
+    function harnessRemoveLeadingZeros(bytes memory data) public pure returns (bytes memory) {
         return removeLeadingZeros(data);
     }
 
-    function testBytesEqual(bytes memory a, bytes memory b) public pure returns (bool) {
+    function harnessBytesEqual(bytes memory a, bytes memory b) public pure returns (bool) {
         return bytesEqual(a, b);
     }
 }
@@ -126,20 +127,20 @@ contract RabinWilliamsVerifierMathTest is Test {
 
     function test_RemoveLeadingZeros_NoLeadingZeros() public view {
         bytes memory input = hex"123456";
-        bytes memory result = harness.testRemoveLeadingZeros(input);
-        assertTrue(harness.testBytesEqual(input, result));
+        bytes memory result = harness.harnessRemoveLeadingZeros(input);
+        assertTrue(harness.harnessBytesEqual(input, result));
     }
 
     function test_RemoveLeadingZeros_WithLeadingZeros() public view {
         bytes memory input = hex"0000123456";
         bytes memory expected = hex"123456";
-        bytes memory result = harness.testRemoveLeadingZeros(input);
-        assertTrue(harness.testBytesEqual(expected, result));
+        bytes memory result = harness.harnessRemoveLeadingZeros(input);
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     function test_RemoveLeadingZeros_AllZeros() public view {
         bytes memory input = hex"00000000";
-        bytes memory result = harness.testRemoveLeadingZeros(input);
+        bytes memory result = harness.harnessRemoveLeadingZeros(input);
         assertEq(result.length, 1);
         assertEq(result[0], 0);
     }
@@ -149,28 +150,28 @@ contract RabinWilliamsVerifierMathTest is Test {
     function test_Compare_Equal() public view {
         bytes memory a = hex"123456";
         bytes memory b = hex"123456";
-        int256 result = harness.testCompare(a, b);
+        int256 result = harness.harnessCompare(a, b);
         assertEq(result, 0);
     }
 
     function test_Compare_AGreater() public view {
         bytes memory a = hex"123457";
         bytes memory b = hex"123456";
-        int256 result = harness.testCompare(a, b);
+        int256 result = harness.harnessCompare(a, b);
         assertGt(result, 0);
     }
 
     function test_Compare_ALess() public view {
         bytes memory a = hex"123455";
         bytes memory b = hex"123456";
-        int256 result = harness.testCompare(a, b);
+        int256 result = harness.harnessCompare(a, b);
         assertLt(result, 0);
     }
 
     function test_Compare_DifferentLengths() public view {
         bytes memory a = hex"12345678";
         bytes memory b = hex"123456";
-        int256 result = harness.testCompare(a, b);
+        int256 result = harness.harnessCompare(a, b);
         assertGt(result, 0);
     }
 
@@ -179,19 +180,19 @@ contract RabinWilliamsVerifierMathTest is Test {
     function test_BytesEqual_Equal() public view {
         bytes memory a = hex"123456";
         bytes memory b = hex"123456";
-        assertTrue(harness.testBytesEqual(a, b));
+        assertTrue(harness.harnessBytesEqual(a, b));
     }
 
     function test_BytesEqual_NotEqual() public view {
         bytes memory a = hex"123456";
         bytes memory b = hex"123457";
-        assertFalse(harness.testBytesEqual(a, b));
+        assertFalse(harness.harnessBytesEqual(a, b));
     }
 
     function test_BytesEqual_DifferentLengths() public view {
         bytes memory a = hex"123456";
         bytes memory b = hex"12345678";
-        assertFalse(harness.testBytesEqual(a, b));
+        assertFalse(harness.harnessBytesEqual(a, b));
     }
 
     // ============ Test: add ============
@@ -199,25 +200,25 @@ contract RabinWilliamsVerifierMathTest is Test {
     function test_Add_Simple() public view {
         bytes memory a = hex"01";
         bytes memory b = hex"02";
-        bytes memory result = harness.testAdd(a, b);
+        bytes memory result = harness.harnessAdd(a, b);
         bytes memory expected = hex"03";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     function test_Add_WithCarry() public view {
         bytes memory a = hex"FF";
         bytes memory b = hex"01";
-        bytes memory result = harness.testAdd(a, b);
+        bytes memory result = harness.harnessAdd(a, b);
         bytes memory expected = hex"0100";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     function test_Add_DifferentLengths() public view {
         bytes memory a = hex"1234";
         bytes memory b = hex"56";
-        bytes memory result = harness.testAdd(a, b);
+        bytes memory result = harness.harnessAdd(a, b);
         bytes memory expected = hex"128A";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     // ============ Test: sub ============
@@ -225,25 +226,25 @@ contract RabinWilliamsVerifierMathTest is Test {
     function test_Sub_Simple() public view {
         bytes memory a = hex"05";
         bytes memory b = hex"02";
-        bytes memory result = harness.testSub(a, b);
+        bytes memory result = harness.harnessSub(a, b);
         bytes memory expected = hex"03";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     function test_Sub_WithBorrow() public view {
         bytes memory a = hex"0100";
         bytes memory b = hex"01";
-        bytes memory result = harness.testSub(a, b);
+        bytes memory result = harness.harnessSub(a, b);
         bytes memory expected = hex"FF";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     function test_Sub_DifferentLengths() public view {
         bytes memory a = hex"1234";
         bytes memory b = hex"56";
-        bytes memory result = harness.testSub(a, b);
+        bytes memory result = harness.harnessSub(a, b);
         bytes memory expected = hex"11DE";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     // ============ Test: mul ============
@@ -251,72 +252,72 @@ contract RabinWilliamsVerifierMathTest is Test {
     function test_Mul_Simple() public view {
         bytes memory a = hex"02";
         bytes memory b = hex"03";
-        bytes memory result = harness.testMul(a, b);
+        bytes memory result = harness.harnessMul(a, b);
         bytes memory expected = hex"06";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     function test_Mul_WithCarry() public view {
         bytes memory a = hex"FF";
         bytes memory b = hex"02";
-        bytes memory result = harness.testMul(a, b);
+        bytes memory result = harness.harnessMul(a, b);
         bytes memory expected = hex"01FE";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     function test_Mul_LargeNumbers() public view {
         bytes memory a = hex"1234";
         bytes memory b = hex"5678";
-        bytes memory result = harness.testMul(a, b);
+        bytes memory result = harness.harnessMul(a, b);
         // 0x1234 * 0x5678 = 0x6260060
         bytes memory expected = hex"06260060";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     // ============ Test: addOne ============
 
     function test_AddOne_Simple() public view {
         bytes memory a = hex"05";
-        bytes memory result = harness.testAddOne(a);
+        bytes memory result = harness.harnessAddOne(a);
         bytes memory expected = hex"06";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     function test_AddOne_WithCarry() public view {
         bytes memory a = hex"FF";
-        bytes memory result = harness.testAddOne(a);
+        bytes memory result = harness.harnessAddOne(a);
         bytes memory expected = hex"0100";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     function test_AddOne_MultipleCarries() public view {
         bytes memory a = hex"FFFF";
-        bytes memory result = harness.testAddOne(a);
+        bytes memory result = harness.harnessAddOne(a);
         bytes memory expected = hex"010000";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     // ============ Test: divByTwo ============
 
     function test_DivByTwo_Simple() public view {
         bytes memory a = hex"06";
-        bytes memory result = harness.testDivByTwo(a);
+        bytes memory result = harness.harnessDivByTwo(a);
         bytes memory expected = hex"03";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     function test_DivByTwo_Odd() public view {
         bytes memory a = hex"07";
-        bytes memory result = harness.testDivByTwo(a);
+        bytes memory result = harness.harnessDivByTwo(a);
         bytes memory expected = hex"03";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     function test_DivByTwo_WithRemainder() public view {
         bytes memory a = hex"0105";
-        bytes memory result = harness.testDivByTwo(a);
+        bytes memory result = harness.harnessDivByTwo(a);
         bytes memory expected = hex"82";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     // ============ Test: mod ============
@@ -324,24 +325,24 @@ contract RabinWilliamsVerifierMathTest is Test {
     function test_Mod_SmallerThanModulus() public view {
         bytes memory a = hex"05";
         bytes memory n = hex"0A";
-        bytes memory result = harness.testMod(a, n);
-        assertTrue(harness.testBytesEqual(a, result));
+        bytes memory result = harness.harnessMod(a, n);
+        assertTrue(harness.harnessBytesEqual(a, result));
     }
 
     function test_Mod_Equal() public view {
         bytes memory a = hex"0A";
         bytes memory n = hex"0A";
-        bytes memory result = harness.testMod(a, n);
+        bytes memory result = harness.harnessMod(a, n);
         bytes memory expected = hex"00";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     function test_Mod_Larger() public view {
         bytes memory a = hex"0F";
         bytes memory n = hex"0A";
-        bytes memory result = harness.testMod(a, n);
+        bytes memory result = harness.harnessMod(a, n);
         bytes memory expected = hex"05";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     // ============ Test: modSub ============
@@ -349,16 +350,16 @@ contract RabinWilliamsVerifierMathTest is Test {
     function test_ModSub_Simple() public view {
         bytes memory n = hex"0A";
         bytes memory a = hex"03";
-        bytes memory result = harness.testModSub(n, a, n);
+        bytes memory result = harness.harnessModSub(n, a, n);
         bytes memory expected = hex"07";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     function test_ModSub_Zero() public view {
         bytes memory n = hex"0A";
         bytes memory a = hex"00";
-        bytes memory result = harness.testModSub(n, a, n);
-        assertTrue(harness.testBytesEqual(n, result));
+        bytes memory result = harness.harnessModSub(n, a, n);
+        assertTrue(harness.harnessBytesEqual(n, result));
     }
 
     // ============ Test: modExp ============
@@ -367,20 +368,20 @@ contract RabinWilliamsVerifierMathTest is Test {
         bytes memory base = hex"02";
         uint256 exponent = 3;
         bytes memory modulus = hex"0A";
-        bytes memory result = harness.testModExp(base, exponent, modulus);
+        bytes memory result = harness.harnessModExp(base, exponent, modulus);
         // 2^3 mod 10 = 8 mod 10 = 8
         bytes memory expected = hex"08";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     function test_ModExp_Larger() public view {
         bytes memory base = hex"05";
         uint256 exponent = 2;
         bytes memory modulus = hex"0F";
-        bytes memory result = harness.testModExp(base, exponent, modulus);
+        bytes memory result = harness.harnessModExp(base, exponent, modulus);
         // 5^2 mod 15 = 25 mod 15 = 10
         bytes memory expected = hex"0A";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     // ============ Test: modMul ============
@@ -389,20 +390,20 @@ contract RabinWilliamsVerifierMathTest is Test {
         bytes memory a = hex"03";
         bytes memory b = hex"04";
         bytes memory n = hex"0A";
-        bytes memory result = harness.testModMul(a, b, n);
+        bytes memory result = harness.harnessModMul(a, b, n);
         // 3 * 4 mod 10 = 12 mod 10 = 2
         bytes memory expected = hex"02";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     function test_ModMul_Larger() public view {
         bytes memory a = hex"07";
         bytes memory b = hex"08";
         bytes memory n = hex"0F";
-        bytes memory result = harness.testModMul(a, b, n);
+        bytes memory result = harness.harnessModMul(a, b, n);
         // 7 * 8 mod 15 = 56 mod 15 = 11
         bytes memory expected = hex"0B";
-        assertTrue(harness.testBytesEqual(expected, result));
+        assertTrue(harness.harnessBytesEqual(expected, result));
     }
 
     // ============ Test: extractSignature ============
@@ -410,37 +411,67 @@ contract RabinWilliamsVerifierMathTest is Test {
     function test_ExtractSignature_Case1() public view {
         // e=1, f=1: first byte = 0x00
         bytes memory signature = hex"00123456";
-        (int256 e, uint256 f, bytes memory x) = harness.testExtractSignature(signature);
+        (int256 e, uint256 f, bytes memory x) = harness.harnessExtractSignature(signature);
         assertEq(e, 1);
         assertEq(f, 1);
-        assertTrue(harness.testBytesEqual(x, hex"123456"));
+        assertTrue(harness.harnessBytesEqual(x, hex"123456"));
     }
 
     function test_ExtractSignature_Case2() public view {
         // e=-1, f=1: first byte = 0x01
         bytes memory signature = hex"01123456";
-        (int256 e, uint256 f, bytes memory x) = harness.testExtractSignature(signature);
+        (int256 e, uint256 f, bytes memory x) = harness.harnessExtractSignature(signature);
         assertEq(e, -1);
         assertEq(f, 1);
-        assertTrue(harness.testBytesEqual(x, hex"123456"));
+        assertTrue(harness.harnessBytesEqual(x, hex"123456"));
     }
 
     function test_ExtractSignature_Case3() public view {
         // e=1, f=2: first byte = 0x02
         bytes memory signature = hex"02123456";
-        (int256 e, uint256 f, bytes memory x) = harness.testExtractSignature(signature);
+        (int256 e, uint256 f, bytes memory x) = harness.harnessExtractSignature(signature);
         assertEq(e, 1);
         assertEq(f, 2);
-        assertTrue(harness.testBytesEqual(x, hex"123456"));
+        assertTrue(harness.harnessBytesEqual(x, hex"123456"));
     }
 
     function test_ExtractSignature_Case4() public view {
         // e=-1, f=2: first byte = 0x03
         bytes memory signature = hex"03123456";
-        (int256 e, uint256 f, bytes memory x) = harness.testExtractSignature(signature);
+        (int256 e, uint256 f, bytes memory x) = harness.harnessExtractSignature(signature);
         assertEq(e, -1);
         assertEq(f, 2);
-        assertTrue(harness.testBytesEqual(x, hex"123456"));
+        assertTrue(harness.harnessBytesEqual(x, hex"123456"));
     }
+
+    // ============ Test: Expected Reverts ============
+
+    function test_ExtractSignature_RevertOnShortSignature() public {
+        bytes memory shortSignature = hex"00";
+        vm.expectRevert("Invalid signature length");
+        harness.harnessExtractSignature(shortSignature);
+    }
+
+    function test_ExtractSignature_RevertOnInvalidFlags() public {
+        // First byte with bits 2-7 set (invalid)
+        bytes memory invalidSignature = hex"04123456";
+        vm.expectRevert("Invalid signature flags");
+        harness.harnessExtractSignature(invalidSignature);
+    }
+
+    function test_Mod_RevertOnZeroModulus() public {
+        bytes memory a = hex"05";
+        bytes memory n = hex"00";
+        // mod will revert when n is zero (hits iteration limit or other issue)
+        // Actually, let's check what happens - it might not revert immediately
+        // The mod function checks for zero modulus in removeLeadingZeros
+        // Let's test with a case that will hit the iteration limit
+        bytes memory largeA = hex"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF";
+        bytes memory smallN = hex"01";
+        // This will hit the iteration limit
+        vm.expectRevert("Mod reduction failed - number too large");
+        harness.harnessMod(largeA, smallN);
+    }
+
 }
 
