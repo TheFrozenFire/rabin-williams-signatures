@@ -105,6 +105,10 @@ fn main() -> Result<()> {
 }
 ```
 
+## References
+
+http://www.connotech.com/doc_rw_sign_basic-03.html
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
