@@ -16,6 +16,8 @@ num-prime = "0.4"
 tracing = "0.1"
 sha2 = "0.10"
 digest = "0.10"
+clap = { version = "4.4", features = ["derive"] }
+hex = "0.4.3"
 
 [dev-dependencies]
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

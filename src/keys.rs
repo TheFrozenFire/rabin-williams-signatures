@@ -83,6 +83,14 @@ fn generate_prime_congruent(bits: usize, remainder: u32, modulus: u32) -> Result
 }
 
 impl<D: Digest + Clone> PublicKey<D> {
+    /// Creates a new PublicKey from a modulus n
+    pub fn from_n(n: BigUint) -> Self {
+        Self {
+            n,
+            hash_fn: HashWrapper::default(),
+        }
+    }
+
     /// Returns a reference to the modulus n
     pub fn n(&self) -> &BigUint {
         &self.n
@@ -175,6 +183,15 @@ impl<D: Digest + Clone> PublicKey<D> {
 }
 
 impl<D: Digest + Clone> PrivateKey<D> {
+    /// Creates a new PrivateKey from primes p and q
+    pub fn from_primes(p: BigUint, q: BigUint) -> Self {
+        Self {
+            p,
+            q,
+            hash_fn: HashWrapper::default(),
+        }
+    }
+
     pub fn n(&self) -> BigUint {
         self.p.clone() * self.q.clone()
     }
